@@ -69,7 +69,9 @@ namespace AsmSpy
             {
                 Console.WriteLine("No dll files found in directory: '{0}'", directoryInfo.FullName);
 
-                var binDir = directoryInfo.GetDirectories("bin", SearchOption.AllDirectories).FirstOrDefault();
+                var nextLevel = directoryInfo.Name == "bin" ? "Debug" : "bin";
+
+                var binDir = directoryInfo.GetDirectories(nextLevel, SearchOption.AllDirectories).FirstOrDefault();
                 if (binDir == null)
                 {
                     return;
@@ -123,6 +125,7 @@ namespace AsmSpy
                 Console.WriteLine("Detailing only conflicting assembly references.");
             }
 
+            var numConflicts = 0;
             foreach (var assemblyReferences in assemblies.OrderBy(i => i.Key))
             {
                 if (skipSystem
@@ -131,13 +134,13 @@ namespace AsmSpy
                     continue;
                 }
 
-                if (onlyConflicts && (assemblyReferences.Value.GroupBy(x => x.VersionReferenced).Count() == 1))
+                var binAssembly = binAssemblies.FirstOrDefault(a => a.GetName().Name == assemblyReferences.Key);
+                var binVersion = binAssembly == null ? null : binAssembly.GetName().Version;
+                
+                if (onlyConflicts && (binVersion == null || assemblyReferences.Value.All(r => r.VersionReferenced == binVersion)))
                 {
                     continue;
                 }
-
-                var binAssembly = binAssemblies.FirstOrDefault(a => a.GetName().Name == assemblyReferences.Key);
-                var binVersion = binAssembly == null ? null : binAssembly.GetName().Version;
 
                 Console.ForegroundColor = ConsoleColor.White;
                 Console.Write("Reference: ");
@@ -197,6 +200,7 @@ namespace AsmSpy
                 }
 
                 Console.WriteLine();
+                numConflicts++;
 
                 if (!bindingRedirects || binVersion == null)
                 {
@@ -212,7 +216,9 @@ namespace AsmSpy
                 bindingRedirectsList.Add(string.Format(BindingRedirect, name.Name, publicKeyToken, culture, maxVersion, binVersion));
             }
 
-            if (!bindingRedirects)
+            Console.WriteLine("Found {0} conflicting assembly references.", numConflicts);
+
+            if (!bindingRedirects || numConflicts == 0)
             {
                 return;
             }
